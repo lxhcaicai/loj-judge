@@ -108,7 +108,7 @@ func initHTTPServer(conf *config.Config) initFunc {
 					logger.Sugar().Error("Http server listen failed: ", err)
 					return
 				}
-				//logger.Sugar().Info("Starting http server at ", conf.HTTPAddr, " with listener ", printListener(lis))
+				logger.Sugar().Info("Starting http server at ", conf.HTTPAddr, " with listener ", printListener(lis))
 				if err := srv.Serve(lis); errors.Is(err, http.ErrServerClosed) {
 					logger.Sugar().Info("Http server stopped: ", err)
 				} else {

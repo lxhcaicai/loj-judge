@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"strings"
 	"syscall"
 )
 
@@ -122,4 +123,17 @@ func newMultiListener(ips []net.IP, port int) (lis net.Listener, err error) {
 		}()
 	}
 	return rt, nil
+}
+
+func printListener(lis net.Listener) string {
+	switch l := lis.(type) {
+	case *multiListener:
+		addrs := make([]string, 0, len(l.listeners))
+		for _, l := range l.listeners {
+			addrs = append(addrs, l.Addr().String())
+		}
+		return strings.Join(addrs, ",")
+	default:
+		return lis.Addr().String()
+	}
 }
