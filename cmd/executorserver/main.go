@@ -5,10 +5,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/config"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/version"
-	//"go.uber.org/zap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 	"log"
 	"net/http"
@@ -18,7 +20,7 @@ import (
 	"time"
 )
 
-//var logger *zap.Logger
+var logger *zap.Logger
 
 func main() {
 	conf := loadConf()
@@ -26,19 +28,17 @@ func main() {
 		fmt.Print(version.Version)
 		return
 	}
+	initLogger(conf)
+	defer logger.Sync()
 
-	//defer logger.Sync()
-	//logger.Sugar().Infof("config loaded: %+v", conf)
+	defer logger.Sync()
+	logger.Sugar().Infof("config loaded: %+v", conf)
 	servers := []initFunc{
 		initHTTPServer(conf),
 	}
 
 	// 优雅停机
 	sig := make(chan os.Signal, 1+len(servers))
-
-	//
-	signal.Notify(sig, os.Interrupt)
-	<-sig
 
 	stops := []stopFunc{}
 	for _, s := range servers {
@@ -59,8 +59,8 @@ func main() {
 	<-sig
 	signal.Reset(os.Interrupt)
 
-	//logger.Sugar().Info("Shutting Down...")
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	logger.Sugar().Info("Shutting Down...")
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*3)
 	defer cancel()
 
 	var eg errgroup.Group
@@ -72,7 +72,8 @@ func main() {
 	}
 
 	go func() {
-		//logger.Sugar().Info("Shutdown Finished", eg.Wait())
+		logger.Sugar().Info("Shutdown Finished", eg.Wait())
+		cancel()
 	}()
 
 	<-ctx.Done()
@@ -104,17 +105,17 @@ func initHTTPServer(conf *config.Config) initFunc {
 		return func() {
 				lis, err := newListener(conf.HTTPAddr)
 				if err != nil {
-					//logger.Sugar().Error("Http server listen failed: ", err)
+					logger.Sugar().Error("Http server listen failed: ", err)
 					return
 				}
-				// //logger.Sugar().Info("Starting http server at ", conf.HTTPAddr, " with listener ", printListener(lis))
+				//logger.Sugar().Info("Starting http server at ", conf.HTTPAddr, " with listener ", printListener(lis))
 				if err := srv.Serve(lis); errors.Is(err, http.ErrServerClosed) {
-					//logger.Sugar().Info("Http server stopped: ", err)
+					logger.Sugar().Info("Http server stopped: ", err)
 				} else {
-					//logger.Sugar().Error("Http server stopped: ", err)
+					logger.Sugar().Error("Http server stopped: ", err)
 				}
 			}, func(ctx context.Context) error {
-				//logger.Sugar().Info("Http server shutdown")
+				logger.Sugar().Info("Http server shutdown")
 				return srv.Shutdown(ctx)
 			}
 	}
@@ -126,8 +127,8 @@ func initHTTPMux(conf *config.Config) http.Handler {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r = gin.New()
-	//r.Use(ginzap.Ginzap(logger, "", false))
-	//r.Use(ginzap.RecoveryWithZap(logger, true))
+	r.Use(ginzap.Ginzap(logger, "", false))
+	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	// Version handle
 	r.GET("/version", generateHandleVersion(conf))
@@ -146,5 +147,26 @@ func generateHandleVersion(conf *config.Config) func(*gin.Context) {
 			"pipeProxy":       true,
 			"symlink":         true,
 		})
+	}
+}
+
+func initLogger(conf *config.Config) {
+	if conf.Slient {
+		logger = zap.NewNop()
+	}
+
+	var err error
+	if conf.Release {
+		logger, err = zap.NewProduction()
+	} else {
+		config := zap.NewDevelopmentConfig()
+		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		if !conf.EnableDebug {
+			config.Level.SetLevel(zap.InfoLevel)
+		}
+		logger, err = config.Build()
+	}
+	if err != nil {
+		log.Fatalln("init logger failed", err)
 	}
 }

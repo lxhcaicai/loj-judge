@@ -8,10 +8,12 @@ import (
 type Config struct {
 
 	// server config
-	HTTPAddr string `flagUsage:"specifies the http binding address"`
+	HTTPAddr    string `flagUsage:"specifies the http binding address"`
+	EnableDebug bool   `flagUsage:"enable debug endpoint"`
 
 	// logger config
 	Release bool `flagUsage:"release level of logs"`
+	Slient  bool `flagUsage:"do not print logs"`
 
 	// 展示版本并推出
 	Version bool `flagUsage:"show version and exit"`
