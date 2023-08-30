@@ -31,7 +31,6 @@ func main() {
 	initLogger(conf)
 	defer logger.Sync()
 
-	defer logger.Sync()
 	logger.Sugar().Infof("config loaded: %+v", conf)
 	servers := []initFunc{
 		initHTTPServer(conf),
