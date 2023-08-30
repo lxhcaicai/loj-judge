@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	crypto_rand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 	"log"
+	math_rand "math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -32,6 +35,8 @@ func main() {
 	defer logger.Sync()
 
 	logger.Sugar().Infof("config loaded: %+v", conf)
+	initRand()
+
 	servers := []initFunc{
 		initHTTPServer(conf),
 	}
@@ -168,4 +173,15 @@ func initLogger(conf *config.Config) {
 	if err != nil {
 		log.Fatalln("init logger failed", err)
 	}
+}
+
+func initRand() {
+	var b [8]byte
+	_, err := crypto_rand.Read(b[:])
+	if err != nil {
+		logger.Fatal("random generator init failed", zap.Error(err))
+	}
+	sd := int64(binary.LittleEndian.Uint64(b[:]))
+	logger.Sugar().Infof("random seed: %d", sd)
+	math_rand.Seed(sd)
 }
