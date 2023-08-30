@@ -32,7 +32,7 @@ func (c *Config) Load() error {
 			EnvPrefix: "ES",
 		},
 	)
-	if os.Getegid() == 1 {
+	if os.Getpid() == 1 {
 		c.Release = true
 		c.HTTPAddr = ":6060"
 	} else {

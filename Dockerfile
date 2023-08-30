@@ -15,7 +15,7 @@ COPY ./ /loj/judge
 RUN go generate ./cmd/executorserver/version \
     && CGO_ENABLE=0 go build -v -tags nomsgpack -o loj_judger_server ./cmd/executorserver
 
-FROM debian:latest
+FROM gcc
 
 WORKDIR /opt
 
