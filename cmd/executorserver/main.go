@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/config"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/version"
+	"github.com/lxhcaicai/loj-judge/filestore"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
@@ -37,6 +38,9 @@ func main() {
 	logger.Sugar().Infof("config loaded: %+v", conf)
 	initRand()
 	warnIfNotLinux()
+
+	// Init environment pool
+	newFilesStore(conf)
 
 	servers := []initFunc{
 		initHTTPServer(conf),
@@ -138,6 +142,8 @@ func initHTTPMux(conf *config.Config) http.Handler {
 	// Version handle
 	r.GET("/version", generateHandleVersion(conf))
 
+	// Config handle
+	r.GET("/config", generateHandleConfig(conf))
 	return r
 }
 
@@ -151,6 +157,17 @@ func generateHandleVersion(conf *config.Config) func(*gin.Context) {
 			"copyOutOptional": true,
 			"pipeProxy":       true,
 			"symlink":         true,
+		})
+	}
+}
+
+func generateHandleConfig(conf *config.Config) func(context2 *gin.Context) {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"copyOutOptional": true,
+			"pipeProxy":       true,
+			"symlink":         true,
+			"fileStorePath":   conf.Dir,
 		})
 	}
 }
@@ -193,4 +210,35 @@ func warnIfNotLinux() {
 		logger.Sugar().Warn("Please notice that the primary supporting platform is Linux")
 		logger.Sugar().Warn("Windows and macOS support are only recommended in development environment")
 	}
+}
+
+func newFilesStore(conf *config.Config) (filestore.FileStore, func() error) {
+	const timeoutCheckInterval = 15 * time.Second
+	var cleanUp func() error
+
+	var fs filestore.FileStore
+	if conf.Dir == "" {
+		if runtime.GOOS == "linux" {
+			conf.Dir = "/dev/shm"
+		} else {
+			conf.Dir = os.TempDir()
+		}
+		var err error
+		conf.Dir, err = os.MkdirTemp(conf.Dir, "executorserver")
+		if err != nil {
+			logger.Sugar().Fatal("failed to create file store temp dir", err)
+		}
+		cleanUp = func() error {
+			return os.RemoveAll(conf.Dir)
+		}
+	}
+	os.MkdirAll(conf.Dir, 0755)
+	fs = filestore.NewFileLocalStore(conf.Dir)
+	if conf.EnableDebug {
+		fs = newMetricsFileStore(fs)
+	}
+	if conf.FileTimeout > 0 {
+		fs = filestore.NewTimeout(fs, conf.FileTimeout, timeoutCheckInterval)
+	}
+	return fs, cleanUp
 }

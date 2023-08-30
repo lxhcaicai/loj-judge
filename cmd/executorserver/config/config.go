@@ -3,9 +3,16 @@ package config
 import (
 	"github.com/koding/multiconfig"
 	"os"
+	"time"
 )
 
 type Config struct {
+
+	// file store
+	Dir string `flagUsage:"flagUsage:"specifies directory to store file upload / download (in memory by default)"`
+
+	// runner limit
+	FileTimeout time.Duration `flagUsage:"specified timeout for filestore files"`
 
 	// server config
 	HTTPAddr    string `flagUsage:"specifies the http binding address"`
