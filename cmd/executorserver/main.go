@@ -36,6 +36,7 @@ func main() {
 
 	logger.Sugar().Infof("config loaded: %+v", conf)
 	initRand()
+	warnIfNotLinux()
 
 	servers := []initFunc{
 		initHTTPServer(conf),
@@ -184,4 +185,12 @@ func initRand() {
 	sd := int64(binary.LittleEndian.Uint64(b[:]))
 	logger.Sugar().Infof("random seed: %d", sd)
 	math_rand.Seed(sd)
+}
+
+func warnIfNotLinux() {
+	if runtime.GOOS != "linux" {
+		logger.Sugar().Warn("Platform is ", runtime.GOOS)
+		logger.Sugar().Warn("Please notice that the primary supporting platform is Linux")
+		logger.Sugar().Warn("Windows and macOS support are only recommended in development environment")
+	}
 }
