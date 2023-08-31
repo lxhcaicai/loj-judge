@@ -10,6 +10,7 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/config"
+	restexecutor "github.com/lxhcaicai/loj-judge/cmd/executorserver/rest_executor"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/version"
 	"github.com/lxhcaicai/loj-judge/filestore"
 	"go.uber.org/zap"
@@ -40,10 +41,10 @@ func main() {
 	warnIfNotLinux()
 
 	// Init environment pool
-	newFilesStore(conf)
+	fs, _ := newFilesStore(conf)
 
 	servers := []initFunc{
-		initHTTPServer(conf),
+		initHTTPServer(conf, fs),
 	}
 
 	// 优雅停机
@@ -102,10 +103,10 @@ func loadConf() *config.Config {
 type stopFunc func(ctx context.Context) error
 type initFunc func() (start func(), cleanUp stopFunc)
 
-func initHTTPServer(conf *config.Config) initFunc {
+func initHTTPServer(conf *config.Config, fs filestore.FileStore) initFunc {
 	return func() (start func(), cleanUp stopFunc) {
 		// Init http handle
-		r := initHTTPMux(conf)
+		r := initHTTPMux(conf, fs)
 		srv := http.Server{
 			Addr:    conf.HTTPAddr,
 			Handler: r,
@@ -130,7 +131,7 @@ func initHTTPServer(conf *config.Config) initFunc {
 	}
 }
 
-func initHTTPMux(conf *config.Config) http.Handler {
+func initHTTPMux(conf *config.Config, fs filestore.FileStore) http.Handler {
 	var r *gin.Engine
 	if conf.Release {
 		gin.SetMode(gin.ReleaseMode)
@@ -144,6 +145,10 @@ func initHTTPMux(conf *config.Config) http.Handler {
 
 	// Config handle
 	r.GET("/config", generateHandleConfig(conf))
+
+	restHandle := restexecutor.New(fs, conf.SrcPrefix, logger)
+	restHandle.Register(r)
+
 	return r
 }
 

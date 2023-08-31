@@ -9,7 +9,8 @@ import (
 type Config struct {
 
 	// file store
-	Dir string `flagUsage:"flagUsage:"specifies directory to store file upload / download (in memory by default)"`
+	SrcPrefix []string `flagUsage:"specifies directory prefix for source type copyin (example: -src-prefix=/home,/usr)"`
+	Dir       string   `flagUsage:"specifies directory to store file upload / download (in memory by default)"`
 
 	// runner limit
 	FileTimeout time.Duration `flagUsage:"specified timeout for filestore files"`
