@@ -1,9 +1,14 @@
 package restexecutor
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/lxhcaicai/loj-judge/envexec"
 	"github.com/lxhcaicai/loj-judge/filestore"
+	"io"
+	"mime"
 	"net/http"
+	"path"
 )
 
 type fileHandle struct {
@@ -43,4 +48,37 @@ func (f *fileHandle) filePost(c *gin.Context) {
 		c.AbortWithError(http.StatusInternalServerError, err)
 	}
 	c.JSON(http.StatusOK, id)
+}
+
+func (f *fileHandle) fileIDGet(c *gin.Context) {
+	type fileURI struct {
+		FileID string `uri:"fid"`
+	}
+	var uri fileURI
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+
+	name, file := f.fs.Get(uri.FileID)
+	if file == nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	r, err := envexec.FileToReader(file)
+	if err != nil {
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	defer r.Close()
+
+	content, err := io.ReadAll(r)
+	if err != nil {
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	typ := mime.TypeByExtension(path.Ext(name))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", name))
+	c.Data(http.StatusOK, typ, content)
 }

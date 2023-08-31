@@ -3,6 +3,7 @@ package filestore
 import (
 	"errors"
 	"fmt"
+	"github.com/lxhcaicai/loj-judge/envexec"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,6 +14,21 @@ type fileLocalStore struct {
 	dir  string            // 存放文件的目录
 	name map[string]string // 如果存在，Id到名称映射
 	mu   sync.RWMutex
+}
+
+func (s *fileLocalStore) Get(id string) (string, envexec.File) {
+	s.mu.RLock()
+	s.mu.RUnlock()
+
+	p := path.Join(s.dir, id)
+	if _, err := os.Stat(p); os.IsNotExist(err) {
+		return "", nil
+	}
+	name, ok := s.name[id]
+	if !ok {
+		name = id
+	}
+	return name, envexec.NewFileInput(p)
 }
 
 func (s *fileLocalStore) Add(name, path string) (string, error) {

@@ -29,4 +29,5 @@ func (h *handle) Register(r *gin.Engine) {
 	// File handle
 	r.GET("/file", h.fileGet)
 	r.POST("/file", h.filePost)
+	r.GET("/file/:fid", h.fileIDGet)
 }

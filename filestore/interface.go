@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"errors"
+	"github.com/lxhcaicai/loj-judge/envexec"
 	"os"
 )
 
@@ -16,6 +17,7 @@ type FileStore interface {
 	List() map[string]string               // List 返回所有文件id的原始名称
 	New() (*os.File, error)                // 创建一个临时文件到文件存储，可以通过添加来保存它
 	Add(name, path string) (string, error) // Add 创建一个带有存储路径的文件，返回id
+	Get(string) (string, envexec.File)     // Get 通过id获取文件，如果不存在则为nil
 }
 
 func generateID() (string, error) {
