@@ -82,3 +82,21 @@ func (f *fileHandle) fileIDGet(c *gin.Context) {
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", name))
 	c.Data(http.StatusOK, typ, content)
 }
+
+func (f *fileHandle) fileIDDelete(c *gin.Context) {
+	type fileURI struct {
+		FileID string `uri:"fid"`
+	}
+	var uri fileURI
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+
+	ok := f.fs.Remove(uri.FileID)
+	if !ok {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	c.Status(http.StatusOK)
+}

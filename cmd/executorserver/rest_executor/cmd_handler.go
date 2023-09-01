@@ -30,4 +30,5 @@ func (h *handle) Register(r *gin.Engine) {
 	r.GET("/file", h.fileGet)
 	r.POST("/file", h.filePost)
 	r.GET("/file/:fid", h.fileIDGet)
+	r.DELETE("/file/:fid", h.fileIDDelete)
 }
