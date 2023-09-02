@@ -112,7 +112,7 @@ func getDefaultMount(tmpFsConf string) *mount.Builder {
 var defaultSymLinks = []container.SymbolicLink{
 	{LinkPath: "/dev/fd", Target: "/proc/self/fd"},
 	{LinkPath: "/dev/stdin", Target: "/proc/self/fd/0"},
-	{LinkPath: "/dev/stdout", Target: "proc/self/fd/1"},
+	{LinkPath: "/dev/stdout", Target: "/proc/self/fd/1"},
 	{LinkPath: "/dev/stderr", Target: "/proc/self/fd/2"},
 }
 
