@@ -12,6 +12,8 @@ import (
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/config"
 	restexecutor "github.com/lxhcaicai/loj-judge/cmd/executorserver/rest_executor"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/version"
+	"github.com/lxhcaicai/loj-judge/env"
+	"github.com/lxhcaicai/loj-judge/env/pool"
 	"github.com/lxhcaicai/loj-judge/filestore"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -42,9 +44,9 @@ func main() {
 
 	// Init environment pool
 	fs, _ := newFilesStore(conf)
-
+	_, builderParam := newEnvBuilder(conf)
 	servers := []initFunc{
-		initHTTPServer(conf, fs),
+		initHTTPServer(conf, fs, builderParam),
 	}
 
 	// 优雅停机
@@ -103,10 +105,10 @@ func loadConf() *config.Config {
 type stopFunc func(ctx context.Context) error
 type initFunc func() (start func(), cleanUp stopFunc)
 
-func initHTTPServer(conf *config.Config, fs filestore.FileStore) initFunc {
+func initHTTPServer(conf *config.Config, fs filestore.FileStore, builderParam map[string]any) initFunc {
 	return func() (start func(), cleanUp stopFunc) {
 		// Init http handle
-		r := initHTTPMux(conf, fs)
+		r := initHTTPMux(conf, fs, builderParam)
 		srv := http.Server{
 			Addr:    conf.HTTPAddr,
 			Handler: r,
@@ -131,7 +133,7 @@ func initHTTPServer(conf *config.Config, fs filestore.FileStore) initFunc {
 	}
 }
 
-func initHTTPMux(conf *config.Config, fs filestore.FileStore) http.Handler {
+func initHTTPMux(conf *config.Config, fs filestore.FileStore, builderParam map[string]any) http.Handler {
 	var r *gin.Engine
 	if conf.Release {
 		gin.SetMode(gin.ReleaseMode)
@@ -144,7 +146,7 @@ func initHTTPMux(conf *config.Config, fs filestore.FileStore) http.Handler {
 	r.GET("/version", generateHandleVersion(conf))
 
 	// Config handle
-	r.GET("/config", generateHandleConfig(conf))
+	r.GET("/config", generateHandleConfig(conf, builderParam))
 
 	restHandle := restexecutor.New(fs, conf.SrcPrefix, logger)
 	restHandle.Register(r)
@@ -166,13 +168,14 @@ func generateHandleVersion(conf *config.Config) func(*gin.Context) {
 	}
 }
 
-func generateHandleConfig(conf *config.Config) func(context2 *gin.Context) {
+func generateHandleConfig(conf *config.Config, builderParam map[string]any) func(context2 *gin.Context) {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"copyOutOptional": true,
 			"pipeProxy":       true,
 			"symlink":         true,
 			"fileStorePath":   conf.Dir,
+			"runnerConfig":    builderParam,
 		})
 	}
 }
@@ -246,4 +249,27 @@ func newFilesStore(conf *config.Config) (filestore.FileStore, func() error) {
 		fs = filestore.NewTimeout(fs, conf.FileTimeout, timeoutCheckInterval)
 	}
 	return fs, cleanUp
+}
+
+func newEnvBuilder(conf *config.Config) (pool.EnvBuilder, map[string]any) {
+	b, param, err := env.NewBuilder(env.Config{
+		ContainerInitPath:  conf.ContainerInitPath,
+		MountConf:          conf.MountConf,
+		TmpFsParam:         conf.TmpFsParam,
+		NetShare:           conf.NetShare,
+		CgroupPrefix:       conf.CgroupPrefix,
+		Cpuset:             conf.Cpuset,
+		ContainerCredStart: conf.ContainerCredStart,
+		EnableCPURate:      conf.EnableCPURate,
+		CPUCfsPeriod:       conf.CPUCfsPeriod,
+		SeccompConf:        conf.SeccompConf,
+		Logger:             logger.Sugar(),
+	})
+	if err != nil {
+		logger.Sugar().Fatal("create environment builder failed", err)
+	}
+	if conf.EnableMetrics {
+		b = &metriceEnvBuilder{b}
+	}
+	return b, param
 }

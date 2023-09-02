@@ -8,16 +8,31 @@ import (
 
 type Config struct {
 
+	// container
+	ContainerInitPath  string `flagUsage:"container init path"`
+	PreFork            int    `flagUsage:"control # of the prefork workers" default:"1"`
+	TmpFsParam         string `flagUsage:"tmpfs mount data (only for default mount with no mount.yaml)" default:"size=128m,nr_inodes=4k"`
+	NetShare           bool   `flagUsage:"share net namespace with host"`
+	MountConf          string `flagUsage:"specifies mount configuration file" default:"mount.yaml"`
+	SeccompConf        string `flagUsage:"specifies seccomp filter" default:"seccomp.yaml"`
+	Parallelism        int    `flagUsage:"control the # of concurrency execution (default equal to number of cpu)"`
+	CgroupPrefix       string `flagUsage:"control cgroup prefix" default:"executor_server"`
+	ContainerCredStart int    `flagUsage:"control the start uid&gid for container (0 uses unprivileged root)" default:"0"`
+
 	// file store
 	SrcPrefix []string `flagUsage:"specifies directory prefix for source type copyin (example: -src-prefix=/home,/usr)"`
 	Dir       string   `flagUsage:"specifies directory to store file upload / download (in memory by default)"`
 
 	// runner limit
-	FileTimeout time.Duration `flagUsage:"specified timeout for filestore files"`
+	FileTimeout   time.Duration `flagUsage:"specified timeout for filestore files"`
+	Cpuset        string        `flagUsage:"control the usage of cpuset for all containerd process"`
+	CPUCfsPeriod  time.Duration `flagUsage:"set cpu.cfs_period" default:"100ms"`
+	EnableCPURate bool          `flagUsage:"enable cpu cgroup rate control"`
 
 	// server config
-	HTTPAddr    string `flagUsage:"specifies the http binding address"`
-	EnableDebug bool   `flagUsage:"enable debug endpoint"`
+	HTTPAddr      string `flagUsage:"specifies the http binding address"`
+	EnableDebug   bool   `flagUsage:"enable debug endpoint"`
+	EnableMetrics bool   `flagUsage:"enable promethus metrics endpoint"`
 
 	// logger config
 	Release bool `flagUsage:"release level of logs"`

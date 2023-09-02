@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/lxhcaicai/loj-judge/env/pool"
 	"github.com/lxhcaicai/loj-judge/filestore"
 	"sync"
 )
@@ -16,4 +17,8 @@ func newMetricsFileStore(fs filestore.FileStore) filestore.FileStore {
 		FileStore: fs,
 		fileSize:  make(map[string]int64),
 	}
+}
+
+type metriceEnvBuilder struct {
+	pool.EnvBuilder
 }
