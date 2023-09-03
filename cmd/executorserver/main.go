@@ -49,6 +49,7 @@ func main() {
 	b, builderParam := newEnvBuilder(conf)
 	envPool := newEnvPool(b, conf.EnableMetrics)
 	prefork(envPool, conf.PreFork)
+	newWorker(conf, envPool, fs)
 	servers := []initFunc{
 		initHTTPServer(conf, fs, builderParam),
 	}
@@ -302,4 +303,19 @@ func prefork(envPool worker.EnvironmentPool, prefork int) {
 	for _, e := range m {
 		envPool.Put(e)
 	}
+}
+
+func newWorker(conf *config.Config, envPool worker.EnvironmentPool, fs filestore.FileStore) worker.Worker {
+	return worker.New(worker.Config{
+		FileStore:             fs,
+		EnvironmentPool:       envPool,
+		Parallelism:           conf.Parallelism,
+		WorkDir:               conf.Dir,
+		TimeLimitTickInterval: conf.TimeLimitCheckerInterval,
+		ExtraMemoryLimit:      *conf.ExtraMemoryLimit,
+		OutputLimit:           *conf.OutputLimit,
+		CopyOutLimit:          *conf.CopyOutLimit,
+		OpenFileLimit:         uint64(conf.OpenFileLimit),
+		ExecObserver:          execObserve,
+	})
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/koding/multiconfig"
+	"github.com/lxhcaicai/loj-judge/envexec"
 	"os"
 	"time"
 )
@@ -24,10 +25,15 @@ type Config struct {
 	Dir       string   `flagUsage:"specifies directory to store file upload / download (in memory by default)"`
 
 	// runner limit
-	FileTimeout   time.Duration `flagUsage:"specified timeout for filestore files"`
-	Cpuset        string        `flagUsage:"control the usage of cpuset for all containerd process"`
-	CPUCfsPeriod  time.Duration `flagUsage:"set cpu.cfs_period" default:"100ms"`
-	EnableCPURate bool          `flagUsage:"enable cpu cgroup rate control"`
+	FileTimeout              time.Duration `flagUsage:"specified timeout for filestore files"`
+	Cpuset                   string        `flagUsage:"control the usage of cpuset for all containerd process"`
+	CPUCfsPeriod             time.Duration `flagUsage:"set cpu.cfs_period" default:"100ms"`
+	EnableCPURate            bool          `flagUsage:"enable cpu cgroup rate control"`
+	TimeLimitCheckerInterval time.Duration `flagUsage:"specifies time limit checker interval" default:"100ms"`
+	ExtraMemoryLimit         *envexec.Size `flagUsage:"specifies extra memory buffer for check memory limit" default:"16k"`
+	OutputLimit              *envexec.Size `flagUsage:"specifies POSIX rlimit for output for each command" default:"256m"`
+	CopyOutLimit             *envexec.Size `flagUsage:"specifies default file copy out max" default:"256m"`
+	OpenFileLimit            int           `flagUsage:"specifies max open file count" default:"256"`
 
 	// server config
 	HTTPAddr      string `flagUsage:"specifies the http binding address"`
