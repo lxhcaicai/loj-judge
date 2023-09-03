@@ -2,11 +2,16 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"github.com/lxhcaicai/loj-judge/envexec"
 	"github.com/lxhcaicai/loj-judge/filestore"
+	"os"
+	"path"
 	"sync"
 	"time"
 )
+
+const maxWaiting = 512
 
 // EnvironmentPool 定义用于执行命令的环境池
 type EnvironmentPool interface {
@@ -81,9 +86,16 @@ func New(conf Config) Worker {
 	}
 }
 
+// Start 以给定的并行数启动worker循环
 func (w worker) Start() {
-	//TODO implement me
-	panic("implement me")
+	w.startOne.Do(func() {
+		w.workCh = make(chan workRequest, maxWaiting)
+		w.done = make(chan struct{})
+		w.wg.Add(w.parallelism)
+		for i := 0; i < w.parallelism; i++ {
+			go w.loop()
+		}
+	})
 }
 
 func (w worker) Submit(ctx context.Context, request *Request) (<-chan Response, <-chan struct{}) {
@@ -99,4 +111,284 @@ func (w worker) Execute(ctx context.Context, request *Request) <-chan Response {
 func (w worker) Shutdown() {
 	//TODO implement me
 	panic("implement me")
+}
+
+func (w *worker) loop() {
+	defer w.wg.Done()
+	for {
+		select {
+		case req, ok := <-w.workCh:
+			if !ok {
+				return
+			}
+			close(req.started)
+
+			select {
+			case <-req.Context.Done():
+				req.resultCh <- Response{
+					RequestID: req.RequestID,
+					Error:     fmt.Errorf("cancelled before execute"),
+				}
+			default:
+				req.resultCh <- w.workDoCmd(req.Context, req.Request)
+			}
+		case <-w.done:
+			return
+		}
+	}
+}
+
+func (w *worker) workDoCmd(ctx context.Context, req *Request) Response {
+	var rt Response
+	if len(req.Cmd) == 1 {
+		rt = w.workDoSingle(ctx, req.Cmd[0])
+	} else {
+		rt = w.workDoGroup(ctx, req.Cmd, req.PipeMapping)
+	}
+	rt.RequestID = req.RequestID
+	if w.execObserver != nil {
+		w.execObserver(rt)
+	}
+	return rt
+}
+
+func (w *worker) workDoSingle(ctx context.Context, rc Cmd) (rt Response) {
+	c, err := w.prepareCmd(rc, make(map[string]bool))
+	if err != nil {
+		rt.Error = err
+		return
+	}
+	// 准备环境
+	env, err := w.envPool.Get()
+	if err != nil {
+		return Response{Results: []Result{{
+			Status: envexec.StatusInternalError,
+			Error:  fmt.Sprintf("failed to get environment %v", err),
+		}}}
+	}
+	defer w.envPool.Put(env)
+	c.Environment = env
+
+	s := &envexec.Single{
+		Cmd:          c,
+		NewStoreFile: w.fs.New,
+	}
+
+	result, err := s.Run(ctx)
+	if err != nil {
+		rt.Error = err
+		return
+	}
+	res := w.convertResult(result, rc)
+	rt.Results = []Result{res}
+	return
+}
+
+func (w *worker) workDoGroup(ctx context.Context, rc []Cmd, pm []PipeMap) (rt Response) {
+	var rts []Result
+	cs := make([]*envexec.Cmd, 0, len(rc))
+	pipeFileNames := preparePipeNames(pm, len(rc))
+	for i, cc := range rc {
+		c, err := w.prepareCmd(cc, pipeFileNames[i])
+		if err != nil {
+			rt.Error = err
+			return
+		}
+		cs = append(cs, c)
+	}
+	for i := range cs {
+		env, err := w.envPool.Get()
+		if err != nil {
+			res := make([]Result, 0, len(cs))
+			for range cs {
+				res = append(res, Result{
+					Status: envexec.StatusInternalError,
+					Error:  fmt.Sprintf("failed to get environment %v", err),
+				})
+			}
+			return Response{Results: res}
+		}
+		defer w.envPool.Put(env)
+		cs[i].Environment = env
+	}
+	g := envexec.Group{
+		Cmd:          cs,
+		Pipes:        pm,
+		NewStoreFile: w.fs.New,
+	}
+	results, err := g.Run(ctx)
+	if err != nil {
+		rt.Error = err
+		return
+	}
+	rts = make([]Result, len(results))
+	for i, result := range results {
+		res := w.convertResult(result, rc[i])
+		rts = append(rts, res)
+	}
+	rt.Results = rts
+	return
+}
+
+func (w *worker) prepareCmd(rc Cmd, pipeFileName map[string]bool) (*envexec.Cmd, error) {
+	files, err := w.prepareCmdFiles(rc.Files, pipeFileName)
+	if err != nil {
+		return nil, err
+	}
+	copyIn, err := w.prepareCopyIn(rc.CopyIn)
+	if err != nil {
+		return nil, err
+	}
+
+	copyOut := make([]envexec.CmdCopyOutFile, 0, len(rc.CopyOut)+len(rc.CopyOutCached))
+	for _, fn := range rc.CopyOut {
+		if !pipeFileName[fn.Name] {
+			copyOut = append(copyOut, fn)
+		}
+	}
+
+	for _, fn := range rc.CopyOutCached {
+		if !pipeFileName[fn.Name] {
+			copyOut = append(copyOut, fn)
+		}
+	}
+
+	wait := &waiter{
+		tickInterval:   w.timeLimitTickInterval,
+		timeLimit:      rc.CPULimit,
+		clockTimeLimit: rc.ClockLimit,
+	}
+
+	var copyOutDir string
+	if rc.CopyOutDir != "" {
+		if path.IsAbs(rc.CopyOutDir) {
+			copyOutDir = rc.CopyOutDir
+		} else {
+			copyOutDir = path.Join(w.workDir, rc.CopyOutDir)
+		}
+	}
+
+	timeLimit := time.Duration(rc.CPULimit)
+	copyOutMax := w.copyOutLimit
+	if rc.CopyOutMax > 0 {
+		copyOutMax = envexec.Size(rc.CopyOutMax)
+	}
+
+	outputLimit := rc.OutputLimit
+	if outputLimit == 0 {
+		outputLimit = w.outputLimit
+	}
+
+	openFileLimit := rc.OpenFileLimit
+	if openFileLimit == 0 {
+		openFileLimit = w.openFileLimit
+	}
+
+	return &envexec.Cmd{
+		Args:              rc.Args,
+		Env:               rc.Env,
+		Files:             files,
+		TTY:               rc.TTY,
+		TimeLimit:         timeLimit,
+		MemoryLimit:       envexec.Size(rc.MemoryLimit),
+		StackLimit:        envexec.Size(rc.StackLimit),
+		ExtraMemoryLimit:  w.extraMemoryLimit,
+		OutputLimit:       outputLimit,
+		ProcLimit:         rc.ProcLimit,
+		OpenFileLimit:     openFileLimit,
+		CPURateLimit:      rc.CPURateLimit,
+		CpuSetLimit:       rc.CPUSetLimit,
+		StrictMemoryLimit: rc.StrictMemoryLimit,
+		CopyIn:            copyIn,
+		SymLinks:          rc.Symlinks,
+		CopyOut:           copyOut,
+		CopyOutDir:        copyOutDir,
+		CopyOutMax:        copyOutMax,
+		Waiter:            wait.Wait,
+	}, nil
+}
+
+func (w *worker) prepareCopyIn(cf map[string]CmdFile) (map[string]envexec.File, error) {
+	rt := make(map[string]envexec.File)
+	for name, f := range cf {
+		if f == nil {
+			return nil, fmt.Errorf("nil type cannot be used for copyIn %s", name)
+		}
+		pcf, err := f.EnvFile(w.fs)
+		if err != nil {
+			return nil, err
+		}
+		rt[name] = pcf
+	}
+	return rt, nil
+}
+
+func (w *worker) prepareCmdFiles(files []CmdFile, pipeFileName map[string]bool) ([]envexec.File, error) {
+	rt := make([]envexec.File, 0, len(files))
+	for _, f := range files {
+		if f == nil {
+			rt = append(rt, nil)
+			continue
+		}
+		cf, err := f.EnvFile(w.fs)
+		if err != nil {
+			return nil, err
+		}
+		rt = append(rt, cf)
+		if t, ok := cf.(*envexec.FileCollector); ok {
+			pipeFileName[t.Name] = true
+		}
+	}
+	return rt, nil
+}
+
+func (w *worker) convertResult(result envexec.Result, cmd Cmd) (res Result) {
+	res.Status = result.Status
+	res.ExitStatus = result.ExitStatus
+	res.Error = result.Error
+	res.Time = result.Time
+	res.RunTime = result.RunTime
+	res.Memory = result.Memory
+	res.FileError = result.FileError
+	res.Files = make(map[string]*os.File)
+	res.FileIDs = make(map[string]string)
+
+	if res.Status == envexec.StatusTimeLimitExceeded && res.ExitStatus != 0 &&
+		res.Time < cmd.CPULimit && res.RunTime < cmd.ClockLimit {
+		res.Status = envexec.StatusSignalled
+	}
+
+	copyOutCachedSet := make(map[string]bool, len(cmd.CopyOutCached))
+	for _, f := range cmd.CopyOutCached {
+		copyOutCachedSet[f.Name] = true
+	}
+
+	for name, b := range result.Files {
+		if !copyOutCachedSet[name] {
+			res.Files[name] = b
+			continue
+		}
+		id, err := w.fs.Add(name, b.Name())
+		if err != nil {
+			res.Status = envexec.StatusFileError
+			res.Error = err.Error()
+			return
+		}
+		res.FileIDs[name] = id
+		b.Close()
+	}
+	return res
+}
+
+func preparePipeNames(pm []PipeMap, l int) []map[string]bool {
+	rt := make([]map[string]bool, l)
+	for i := range rt {
+		rt[i] = make(map[string]bool)
+	}
+	for _, p := range pm {
+		if p.Proxy && p.In.Index >= 0 && p.In.Index < l {
+			rt[p.In.Index][p.Name] = true
+		}
+	}
+	return rt
 }

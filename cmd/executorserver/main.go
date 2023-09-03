@@ -49,7 +49,8 @@ func main() {
 	b, builderParam := newEnvBuilder(conf)
 	envPool := newEnvPool(b, conf.EnableMetrics)
 	prefork(envPool, conf.PreFork)
-	newWorker(conf, envPool, fs)
+	work := newWorker(conf, envPool, fs)
+	work.Start()
 	servers := []initFunc{
 		initHTTPServer(conf, fs, builderParam),
 	}

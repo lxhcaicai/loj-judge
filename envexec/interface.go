@@ -58,3 +58,5 @@ type Environment interface {
 	// 为文件/目录创建符号链接
 	Symlink(oldName, newName string) error
 }
+
+type NewStoreFile func() (*os.File, error)

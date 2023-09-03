@@ -31,9 +31,26 @@ type FileOpened struct {
 
 func (*FileOpened) isFile() {}
 
+// FileWriter 表示将通过管道从exec输出的管道输出
+type FileWriter struct {
+	Writer io.Writer
+	Limit  Size
+}
+
+func (*FileWriter) isFile() {}
+
 func NewFileInput(p string) File {
 	return &FileInput{Path: p}
 }
+
+// FileCollector 表示将通过管道收集的管道输出
+type FileCollector struct {
+	Name  string
+	Limit Size
+	Pipe  bool
+}
+
+func (f FileCollector) isFile() {}
 
 func FileToReader(f File) (io.ReadCloser, error) {
 	switch f := f.(type) {
@@ -50,4 +67,28 @@ func FileToReader(f File) (io.ReadCloser, error) {
 	default:
 		return nil, fmt.Errorf("file cannot open as reader %v", f)
 	}
+}
+
+// NewFileReader creates File input which can be fully read before exec
+// or piped into exec
+func NewFileReader(r io.Reader, s bool) File {
+	return &FileReader{
+		Reader: r,
+		Stream: s,
+	}
+}
+
+// NewFileCollector 创建将通过管道收集的文件输出
+func NewFileCollector(name string, limit Size, pipe bool) File {
+	return &FileCollector{
+		Name:  name,
+		Limit: limit,
+		Pipe:  pipe,
+	}
+}
+
+// ReaderTTY will be asserts when File Reader is provided and TTY is enabled
+// and then TTY will be called with pty file
+type ReaderTTY interface {
+	TTY(file *os.File)
 }
