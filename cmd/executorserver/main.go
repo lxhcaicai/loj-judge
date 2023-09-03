@@ -15,6 +15,7 @@ import (
 	"github.com/lxhcaicai/loj-judge/env"
 	"github.com/lxhcaicai/loj-judge/env/pool"
 	"github.com/lxhcaicai/loj-judge/filestore"
+	"github.com/lxhcaicai/loj-judge/worker"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
@@ -44,7 +45,8 @@ func main() {
 
 	// Init environment pool
 	fs, _ := newFilesStore(conf)
-	_, builderParam := newEnvBuilder(conf)
+	b, builderParam := newEnvBuilder(conf)
+	newEnvPool(b, conf.EnableMetrics)
 	servers := []initFunc{
 		initHTTPServer(conf, fs, builderParam),
 	}
@@ -272,4 +274,12 @@ func newEnvBuilder(conf *config.Config) (pool.EnvBuilder, map[string]any) {
 		b = &metriceEnvBuilder{b}
 	}
 	return b, param
+}
+
+func newEnvPool(b pool.EnvBuilder, enableMetrics bool) worker.EnvironmentPool {
+	p := pool.NewPool(b)
+	if enableMetrics {
+		p = &metricsEnvPool{p}
+	}
+	return p
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/lxhcaicai/loj-judge/env/pool"
 	"github.com/lxhcaicai/loj-judge/filestore"
+	"github.com/lxhcaicai/loj-judge/worker"
 	"sync"
 )
 
@@ -21,4 +22,8 @@ func newMetricsFileStore(fs filestore.FileStore) filestore.FileStore {
 
 type metriceEnvBuilder struct {
 	pool.EnvBuilder
+}
+
+type metricsEnvPool struct {
+	worker.EnvironmentPool
 }
