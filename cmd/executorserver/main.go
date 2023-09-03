@@ -14,6 +14,7 @@ import (
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/version"
 	"github.com/lxhcaicai/loj-judge/env"
 	"github.com/lxhcaicai/loj-judge/env/pool"
+	"github.com/lxhcaicai/loj-judge/envexec"
 	"github.com/lxhcaicai/loj-judge/filestore"
 	"github.com/lxhcaicai/loj-judge/worker"
 	"go.uber.org/zap"
@@ -46,7 +47,8 @@ func main() {
 	// Init environment pool
 	fs, _ := newFilesStore(conf)
 	b, builderParam := newEnvBuilder(conf)
-	newEnvPool(b, conf.EnableMetrics)
+	envPool := newEnvPool(b, conf.EnableMetrics)
+	prefork(envPool, conf.PreFork)
 	servers := []initFunc{
 		initHTTPServer(conf, fs, builderParam),
 	}
@@ -282,4 +284,22 @@ func newEnvPool(b pool.EnvBuilder, enableMetrics bool) worker.EnvironmentPool {
 		p = &metricsEnvPool{p}
 	}
 	return p
+}
+
+func prefork(envPool worker.EnvironmentPool, prefork int) {
+	if prefork <= 0 {
+		return
+	}
+	logger.Sugar().Info("create", prefork, " prefork containers")
+	m := make([]envexec.Environment, 0, prefork)
+	for i := 0; i < prefork; i++ {
+		e, err := envPool.Get()
+		if err != nil {
+			log.Fatalln("prefork environment failed", err)
+		}
+		m = append(m, e)
+	}
+	for _, e := range m {
+		envPool.Put(e)
+	}
 }
