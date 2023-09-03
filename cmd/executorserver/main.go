@@ -290,7 +290,7 @@ func prefork(envPool worker.EnvironmentPool, prefork int) {
 	if prefork <= 0 {
 		return
 	}
-	logger.Sugar().Info("create", prefork, " prefork containers")
+	logger.Sugar().Info("create ", prefork, " prefork containers")
 	m := make([]envexec.Environment, 0, prefork)
 	for i := 0; i < prefork; i++ {
 		e, err := envPool.Get()

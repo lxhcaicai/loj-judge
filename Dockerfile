@@ -19,7 +19,7 @@ FROM gcc
 
 WORKDIR /opt
 
-COPY --from=build /loj/judge/loj_judger_server /opt/
+COPY --from=build /loj/judge/loj_judger_server  /loj/judge/mount.yaml /opt/
 
 EXPOSE 6060/tcp
 

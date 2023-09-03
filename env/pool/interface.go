@@ -25,7 +25,7 @@ type pool struct {
 	mu  sync.Mutex
 }
 
-func (p pool) Get() (envexec.Environment, error) {
+func (p *pool) Get() (envexec.Environment, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -37,7 +37,7 @@ func (p pool) Get() (envexec.Environment, error) {
 	return p.builder.Build()
 }
 
-func (p pool) Put(env envexec.Environment) {
+func (p *pool) Put(env envexec.Environment) {
 	e, ok := env.(Environment)
 	if !ok {
 		panic("invalid environment put")
