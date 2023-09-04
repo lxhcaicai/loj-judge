@@ -87,7 +87,7 @@ func New(conf Config) Worker {
 }
 
 // Start 以给定的并行数启动worker循环
-func (w worker) Start() {
+func (w *worker) Start() {
 	w.startOne.Do(func() {
 		w.workCh = make(chan workRequest, maxWaiting)
 		w.done = make(chan struct{})
