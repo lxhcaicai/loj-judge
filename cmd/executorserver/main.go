@@ -51,6 +51,8 @@ func main() {
 	prefork(envPool, conf.PreFork)
 	work := newWorker(conf, envPool, fs)
 	work.Start()
+	logger.Sugar().Infof("Started worker with parallelism=%d, workdir=%s, timeLimitCheckInterval=%v",
+		conf.Parallelism, conf.Dir, conf.TimeLimitCheckerInterval)
 	servers := []initFunc{
 		initHTTPServer(conf, fs, builderParam),
 	}

@@ -4,6 +4,7 @@ import (
 	"github.com/koding/multiconfig"
 	"github.com/lxhcaicai/loj-judge/envexec"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -66,6 +67,9 @@ func (c *Config) Load() error {
 		c.HTTPAddr = ":6060"
 	} else {
 		c.HTTPAddr = "localhost:6060"
+	}
+	if c.Parallelism <= 0 {
+		c.Parallelism = runtime.NumCPU()
 	}
 	return cl.Load(c)
 }
