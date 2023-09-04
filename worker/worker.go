@@ -98,14 +98,15 @@ func (w *worker) Start() {
 	})
 }
 
-func (w worker) Submit(ctx context.Context, req *Request) (<-chan Response, <-chan struct{}) {
+func (w *worker) Submit(ctx context.Context, req *Request) (<-chan Response, <-chan struct{}) {
 	ch := make(chan Response, 1)
 	started := make(chan struct{})
 	select {
 	case w.workCh <- workRequest{
-		Request: req,
-		Context: ctx,
-		started: started,
+		Request:  req,
+		Context:  ctx,
+		started:  started,
+		resultCh: ch,
 	}:
 	default:
 		close(started)
@@ -122,7 +123,7 @@ func (w worker) Execute(ctx context.Context, request *Request) <-chan Response {
 	panic("implement me")
 }
 
-func (w worker) Shutdown() {
+func (w *worker) Shutdown() {
 	w.stopOne.Do(func() {
 		close(w.done)
 		w.wg.Wait()
