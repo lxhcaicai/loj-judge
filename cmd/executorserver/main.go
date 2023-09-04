@@ -56,7 +56,7 @@ func main() {
 	servers := []initFunc{
 		cleanUpWorker(work),
 		cleanUpFs(fsCleanUp),
-		initHTTPServer(conf, fs, builderParam),
+		initHTTPServer(conf, work, fs, builderParam),
 	}
 
 	// 优雅停机
@@ -115,10 +115,10 @@ func loadConf() *config.Config {
 type stopFunc func(ctx context.Context) error
 type initFunc func() (start func(), cleanUp stopFunc)
 
-func initHTTPServer(conf *config.Config, fs filestore.FileStore, builderParam map[string]any) initFunc {
+func initHTTPServer(conf *config.Config, work worker.Worker, fs filestore.FileStore, builderParam map[string]any) initFunc {
 	return func() (start func(), cleanUp stopFunc) {
 		// Init http handle
-		r := initHTTPMux(conf, fs, builderParam)
+		r := initHTTPMux(conf, work, fs, builderParam)
 		srv := http.Server{
 			Addr:    conf.HTTPAddr,
 			Handler: r,
@@ -143,7 +143,7 @@ func initHTTPServer(conf *config.Config, fs filestore.FileStore, builderParam ma
 	}
 }
 
-func initHTTPMux(conf *config.Config, fs filestore.FileStore, builderParam map[string]any) http.Handler {
+func initHTTPMux(conf *config.Config, work worker.Worker, fs filestore.FileStore, builderParam map[string]any) http.Handler {
 	var r *gin.Engine
 	if conf.Release {
 		gin.SetMode(gin.ReleaseMode)
@@ -158,7 +158,7 @@ func initHTTPMux(conf *config.Config, fs filestore.FileStore, builderParam map[s
 	// Config handle
 	r.GET("/config", generateHandleConfig(conf, builderParam))
 
-	restHandle := restexecutor.New(fs, conf.SrcPrefix, logger)
+	restHandle := restexecutor.New(work, fs, conf.SrcPrefix, logger)
 	restHandle.Register(r)
 
 	return r

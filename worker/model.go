@@ -9,6 +9,7 @@ import (
 type Size = envexec.Size
 type CmdCopyOutFile = envexec.CmdCopyOutFile
 type PipeMap = envexec.Pipe
+type PipeIndex = envexec.PipeIndex
 
 // Cmd 定义了在envexec中使用的启动程序的命令和限制
 type Cmd struct {
