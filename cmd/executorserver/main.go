@@ -45,7 +45,7 @@ func main() {
 	warnIfNotLinux()
 
 	// Init environment pool
-	fs, _ := newFilesStore(conf)
+	fs, fsCleanUp := newFilesStore(conf)
 	b, builderParam := newEnvBuilder(conf)
 	envPool := newEnvPool(b, conf.EnableMetrics)
 	prefork(envPool, conf.PreFork)
@@ -55,6 +55,7 @@ func main() {
 		conf.Parallelism, conf.Dir, conf.TimeLimitCheckerInterval)
 	servers := []initFunc{
 		cleanUpWorker(work),
+		cleanUpFs(fsCleanUp),
 		initHTTPServer(conf, fs, builderParam),
 	}
 
@@ -235,6 +236,20 @@ func cleanUpWorker(work worker.Worker) initFunc {
 			work.Shutdown()
 			logger.Sugar().Info("Worker shutdown")
 			return nil
+		}
+	}
+}
+
+func cleanUpFs(fsCleanUp func() error) initFunc {
+	return func() (start func(), cleanUp stopFunc) {
+		if fsCleanUp() == nil {
+			return nil, nil
+		}
+		return nil, func(ctx context.Context) error {
+			err := fsCleanUp()
+			logger.Sugar().Info("FileStore cleaned up")
+			return err
+
 		}
 	}
 }
