@@ -16,7 +16,7 @@ type CmdFile struct {
 	Content *string `json:"content"`
 	FileID  *string `json:"fileId"`
 	Name    *string `json:"name"`
-	Max     *int64  `json:"pipe"`
+	Max     *int64  `json:"max"`
 	Pipe    bool    `json:"pipe"`
 	Symlink *string `json:"symlink"`
 }
@@ -283,7 +283,7 @@ func convertCmdFile(f *CmdFile, srcPrefix []string) (worker.CmdFile, error) {
 		}
 		return &worker.LocalFile{Src: *f.Src}, nil
 	case f.Content != nil:
-		return &worker.LocalFile{Src: *f.Src}, nil
+		return &worker.MemoryFile{Content: []byte(*f.Content)}, nil
 	case f.FileID != nil:
 		return &worker.CachedFile{FileID: *f.FileID}, nil
 	case f.Max != nil && f.Name != nil:

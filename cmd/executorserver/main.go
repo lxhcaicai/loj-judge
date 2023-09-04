@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/config"
 	restexecutor "github.com/lxhcaicai/loj-judge/cmd/executorserver/rest_executor"
@@ -149,8 +148,8 @@ func initHTTPMux(conf *config.Config, work worker.Worker, fs filestore.FileStore
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r = gin.New()
-	r.Use(ginzap.Ginzap(logger, "", false))
-	r.Use(ginzap.RecoveryWithZap(logger, true))
+	//r.Use(ginzap.Ginzap(logger, "", false))
+	//r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	// Version handle
 	r.GET("/version", generateHandleVersion(conf))
