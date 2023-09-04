@@ -109,8 +109,10 @@ func (w worker) Execute(ctx context.Context, request *Request) <-chan Response {
 }
 
 func (w worker) Shutdown() {
-	//TODO implement me
-	panic("implement me")
+	w.stopOne.Do(func() {
+		close(w.done)
+		w.wg.Wait()
+	})
 }
 
 func (w *worker) loop() {

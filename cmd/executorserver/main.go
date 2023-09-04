@@ -54,6 +54,7 @@ func main() {
 	logger.Sugar().Infof("Started worker with parallelism=%d, workdir=%s, timeLimitCheckInterval=%v",
 		conf.Parallelism, conf.Dir, conf.TimeLimitCheckerInterval)
 	servers := []initFunc{
+		cleanUpWorker(work),
 		initHTTPServer(conf, fs, builderParam),
 	}
 
@@ -225,6 +226,16 @@ func warnIfNotLinux() {
 		logger.Sugar().Warn("Platform is ", runtime.GOOS)
 		logger.Sugar().Warn("Please notice that the primary supporting platform is Linux")
 		logger.Sugar().Warn("Windows and macOS support are only recommended in development environment")
+	}
+}
+
+func cleanUpWorker(work worker.Worker) initFunc {
+	return func() (start func(), cleanUp stopFunc) {
+		return nil, func(ctx context.Context) error {
+			work.Shutdown()
+			logger.Sugar().Info("Worker shutdown")
+			return nil
+		}
 	}
 }
 
