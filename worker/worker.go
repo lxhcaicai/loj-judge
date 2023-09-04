@@ -98,9 +98,23 @@ func (w worker) Start() {
 	})
 }
 
-func (w worker) Submit(ctx context.Context, request *Request) (<-chan Response, <-chan struct{}) {
-	//TODO implement me
-	panic("implement me")
+func (w worker) Submit(ctx context.Context, req *Request) (<-chan Response, <-chan struct{}) {
+	ch := make(chan Response, 1)
+	started := make(chan struct{})
+	select {
+	case w.workCh <- workRequest{
+		Request: req,
+		Context: ctx,
+		started: started,
+	}:
+	default:
+		close(started)
+		ch <- Response{
+			RequestID: req.RequestID,
+			Error:     fmt.Errorf("worker queue is full"),
+		}
+	}
+	return ch, started
 }
 
 func (w worker) Execute(ctx context.Context, request *Request) <-chan Response {
