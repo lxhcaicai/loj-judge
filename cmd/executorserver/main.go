@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/lxhcaicai/loj-judge/cmd/executorserver/config"
 	restexecutor "github.com/lxhcaicai/loj-judge/cmd/executorserver/rest_executor"
@@ -44,7 +45,7 @@ func main() {
 	warnIfNotLinux()
 
 	// Init environment pool
-	fs, fsCleanUp := newFilesStore(conf)
+	fs, _ := newFilesStore(conf)
 	b, builderParam := newEnvBuilder(conf)
 	envPool := newEnvPool(b, conf.EnableMetrics)
 	prefork(envPool, conf.PreFork)
@@ -54,7 +55,7 @@ func main() {
 		conf.Parallelism, conf.Dir, conf.TimeLimitCheckerInterval)
 	servers := []initFunc{
 		cleanUpWorker(work),
-		cleanUpFs(fsCleanUp),
+		//cleanUpFs(fsCleanUp),
 		initHTTPServer(conf, work, fs, builderParam),
 	}
 
@@ -148,8 +149,8 @@ func initHTTPMux(conf *config.Config, work worker.Worker, fs filestore.FileStore
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r = gin.New()
-	//r.Use(ginzap.Ginzap(logger, "", false))
-	//r.Use(ginzap.RecoveryWithZap(logger, true))
+	r.Use(ginzap.Ginzap(logger, "", false))
+	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	// Version handle
 	r.GET("/version", generateHandleVersion(conf))
@@ -265,15 +266,22 @@ func newFilesStore(conf *config.Config) (filestore.FileStore, func() error) {
 			conf.Dir = os.TempDir()
 		}
 		var err error
+		log.Println("going to mkdir...")
 		conf.Dir, err = os.MkdirTemp(conf.Dir, "executorserver")
+		log.Printf("mkdir %v ...\n", conf.Dir)
 		if err != nil {
+			log.Printf("mkdir failed...")
 			logger.Sugar().Fatal("failed to create file store temp dir", err)
 		}
 		cleanUp = func() error {
 			return os.RemoveAll(conf.Dir)
 		}
 	}
-	os.MkdirAll(conf.Dir, 0755)
+	err := os.MkdirAll(conf.Dir, 0755)
+	if err != nil {
+		log.Println("MkdirAll failed...")
+		logger.Sugar().Fatal("failed to MkdirAll file store dir", err)
+	}
 	fs = filestore.NewFileLocalStore(conf.Dir)
 	if conf.EnableDebug {
 		fs = newMetricsFileStore(fs)
