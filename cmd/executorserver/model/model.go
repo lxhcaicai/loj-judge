@@ -80,6 +80,22 @@ type Response struct {
 // Status 为 envexec.Status 提供JSON封装
 type Status envexec.Status
 
+// MarshalJSON 将状态转换为字符串
+func (s Status) MarshalJSON() ([]byte, error) {
+	return []byte("\"" + (envexec.Status)(s).String() + "\""), nil
+}
+
+// UnmarshalJSON 将字符串转换为状态
+func (s *Status) UnmarshalJSON(b []byte) error {
+	str := string(b)
+	v, err := envexec.StringToStatus(str)
+	if err != nil {
+		return err
+	}
+	*s = Status(v)
+	return nil
+}
+
 type Result struct {
 	Status     Status              `json:"status"`
 	ExitStatus int                 `json:"exitStatus"`

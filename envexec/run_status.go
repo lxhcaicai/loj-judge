@@ -1,5 +1,7 @@
 package envexec
 
+import "fmt"
+
 // Status 定义运行任务状态返回状态
 type Status int
 
@@ -22,6 +24,9 @@ var statusToString = []string{
 	"Container Error",
 }
 
+// stringToStatus map string to corresponding Status
+var stringToStatus = make(map[string]Status)
+
 const (
 	// 未初始化状态
 	StatusInvalid = iota
@@ -40,7 +45,7 @@ const (
 	StatusSignalled
 	StatusDangerousSyscall
 
-	StatusRuntimeError // RE
+	//StatusRuntimeError // RE
 
 	// SPJ / interactor error
 	StatusJudgementFailed
@@ -56,4 +61,18 @@ func (s Status) String() string {
 		return statusToString[0]
 	}
 	return statusToString[si]
+}
+
+func StringToStatus(s string) (Status, error) {
+	v, ok := stringToStatus[s]
+	if !ok {
+		return 0, fmt.Errorf("invalid string converting %s", s)
+	}
+	return v, nil
+}
+
+func init() {
+	for i, v := range statusToString {
+		stringToStatus["\""+v+"\""] = Status(i)
+	}
 }
